@@ -1,49 +1,77 @@
+#include <unistd.h>
 #include "main.h"
-#include <stdio.h>
-/**
- * _printf - entry point
- * @format: my format string
- *
- * Return: no. of bytes
- */
+#include <stdarg.h>
+
+typedef void (*conversion_handler)(int, va_list *);
+
+void output_char(int file_descriptor, va_list *args)
+{
+    char c = va_arg(*args, int);
+    write(file_descriptor, &c, 1);
+}
+
+void output_string(int file_descriptor, va_list *args)
+{
+    char *str = va_arg(*args, char*);
+    while (*str != '\0') {
+        write(file_descriptor, str, 1);
+        str++;
+    }
+}
+
+void output_percent(int file_descriptor, va_list *args)
+{
+    char c = '%';
+    write(file_descriptor, &c, 1);
+}
+
 int _printf(const char *format, ...)
 {
-	int sum = 0;
-	va_list an;
-	char *n, *start;
-	params_t params = PARAMS_INIT;
-
-	va_start(an, format);
-
-	if (!format || (format[0] == '%' && !format[1]))
-		return (-1);
-	if (format[0] == '%' && format[1] == ' ' && !format[2])
-		return (-1);
-	for (n = (char *)format; *n; n++)
+    va_list args;
+    va_start(args, format);
+    
+    int count = 0;
+    
+    conversion_handler handlers[256] = { NULL };    
+    handlers['c'] = output_char;
+    handlers['s'] = output_string;
+    handlers['%'] = output_percent;
+    
+    const char *current_character = format;
+    
+    while (*current_character != '\0')
+    {
+        if (*current_character == '%')
 	{
-		init_params(&params, an);
-		if (*n != '%')
-		{
-			sum += putchar(*n);
-			continue;
-		}
-		start = n;
-		n++;
-		while (get_flag(n, &params)) /* while char at n is flag char */
-		{
-			n++; /* next char */
-		}
-		n = get_width(n, &params, an);
-		n = get_precision(n, &params, an);
-		if (get_modifier(n, &params))
-			n++;
-		if (!get_specifier(n))
-			sum += print_from_to(start, n,
-				params.l_modifier || params.h_modifier ? n - 1 : 0);
-		else
-			sum += get_print_func(n, an, &params);
-	}
-	putchar(BUF_FLUSH);
-	va_end(an);
-	return (sum);
+            current_character++;
+            if (handlers[(unsigned char)(*current_character)])
+	    {
+                handlers[(unsigned char)(*current_character)](STDOUT_FILENO, &args);
+                count++;
+	    }
+	    else
+	    {
+                char c = '%';
+                write(STDOUT_FILENO, &c, 1);
+            }
+        }
+	else
+	{
+            write(STDOUT_FILENO, current_character, 1);
+            count++;
+        }
+        
+        current_character++;
+    }
+    
+    va_end(args);
+    
+    return count;
+}
+
+int main()
+{
+    char format[] = "Hello, %s! This is a %c project with faruq. The estimate value of %% is %d.";
+    _printf(format, "Arnold", 'C', 400);
+    return 0;
 }
